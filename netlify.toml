@@ -1,0 +1,43 @@
+# netlify.toml — Netlify deploy config (sibling to vercel.json; both coexist).
+# The booking logic is identical on both platforms (api/* + lib/*); only the
+# function wrappers in netlify/functions/* and this file are Netlify-specific.
+
+[build]
+  # Catch ESM/extension/type errors before functions are bundled. This needs the
+  # devDependencies (typescript), which Netlify installs by default — do NOT set
+  # NODE_ENV=production in your site env, or npm skips devDeps and tsc goes missing.
+  command = "npm run typecheck"
+  # Static assets (placeholder landing page). Keeping a dedicated publish dir means
+  # repo source files (lib/, api/) are NOT served as downloadable static files.
+  publish = "public"
+  # Each file here becomes a function; config.path in each maps it to /api/*.
+  functions = "netlify/functions"
+
+[build.environment]
+  # The app relies on native global fetch — require a Node that has it. (Some older
+  # Netlify sites still default to Node 16, which has no global fetch and would crash
+  # every handler at runtime.)
+  NODE_VERSION = "20"
+
+[functions]
+  # TS/MTS functions are bundled with esbuild, which resolves the ".js" import
+  # extensions (e.g. ../../api/ghl.js -> ghl.ts) the same way the Vercel build does.
+  node_bundler = "esbuild"
+
+# Latency note: Netlify Functions run in AWS us-east-1 by default. The Vercel
+# deploy pins pdx1 (near VAPI us-west-2) — Netlify can't pin an arbitrary region
+# from this file. If the VAPI legs feel slow, set the functions region in the
+# Netlify UI (Site config → Functions) on a plan that supports it.
+
+# ── One-click "Deploy to Netlify" env prompts (parity with the Vercel button) ──
+# Shown in the deploy UI so the user fills these before the first build.
+[template.environment]
+  GHL_PIT = "GoHighLevel Private Integration Token (calendars + contacts scopes)"
+  GHL_CALENDAR_ID = "The calendar to book into"
+  GHL_LOCATION_ID = "Your GHL sub-account (location) id"
+  GHL_ASSIGNED_USER_ID = "Optional: user the appointment is assigned to (drives which Gmail it syncs to)"
+  GHL_TIMEZONE = "IANA tz of the calendar, e.g. America/Chicago (default America/New_York)"
+  VAPI_ASSISTANT_ID = "The assistant /api/assistant-request returns"
+  SMS_PROVIDER = "ghl (default) | twilio | telnyx | vapi"
+  UPSTASH_REDIS_REST_URL = "Optional: Upstash Redis REST URL (per-call cache; reschedule needs it)"
+  UPSTASH_REDIS_REST_TOKEN = "Optional: Upstash Redis REST token"

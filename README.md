@@ -7,22 +7,57 @@ appointments** straight into your GoHighLevel calendar — over voice, with no h
 Built for low latency: the slow work (availability, caller lookup, existing-appointment check)
 is prefetched at call start and cached, so the live conversation only does a slot re-check + write.
 
-**Stack:** Vercel Functions (Node) · GoHighLevel REST · Upstash Redis (optional) · VAPI · **zero runtime dependencies**
+**Stack:** Vercel **or** Netlify Functions (Node) · GoHighLevel REST · Upstash Redis (optional) · VAPI · **zero runtime dependencies**
+
+> **Deploys to Vercel or Netlify** from the same repo. The booking logic (`api/*` + `lib/*`)
+> is platform-agnostic Web-standard handlers; each platform just has a thin adapter layer
+> (`vercel.json` / `netlify.toml` + `netlify/functions/*`). Both keep the same `/api/...` URLs,
+> so your VAPI tool + webhook config is identical either way.
 
 ---
 
+## Which platform? (Vercel or Netlify)
+
+**You don't choose inside the repo — you choose by where you deploy it.** This one repo deploys to
+either host; each one reads only its own config and ignores the other's:
+
+| If you deploy to… | It uses | It ignores |
+|-------------------|---------|------------|
+| **Vercel** | `vercel.json` + the `api/*` functions | `netlify.toml`, `netlify/` |
+| **Netlify** | `netlify.toml` + `netlify/functions/*` (which import the same `api/*` logic) | `vercel.json` |
+
+So connecting the repo to Vercel makes it a Vercel app; connecting it to Netlify makes it a Netlify
+app. Both can even coexist (deploy to both at once) without conflict. **Rule of thumb: pick the host
+your account/client already uses.** If you only ever want one, you *may* delete the other's files
+(`vercel.json`, or `netlify.toml` + `netlify/`), but you don't have to — leaving both is harmless.
+
 ## One-click deploy
+
+Use the button for the platform you picked above — it clones this repo into **your** GitHub + host,
+prompts you for the env vars below, and deploys the backend. **That gets the hosting half done in
+one click.**
+
+**Vercel:**
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fhamchowderr%2Fvapi-ghl-booking&env=GHL_PIT,GHL_CALENDAR_ID,GHL_LOCATION_ID,GHL_ASSIGNED_USER_ID,GHL_TIMEZONE,VAPI_ASSISTANT_ID,SMS_PROVIDER&envDescription=Your%20GoHighLevel%20%2B%20VAPI%20credentials&envLink=https%3A%2F%2Fgithub.com%2Fhamchowderr%2Fvapi-ghl-booking%23environment-variables&project-name=vapi-ghl-booking&repository-name=vapi-ghl-booking)
 
-The button clones this repo into **your** GitHub + Vercel, prompts you for the env vars below,
-and deploys the backend. **That gets the Vercel half done in one click.** You still do two things:
+**Netlify:**
 
-1. **(Optional) Add Redis** — in your new Vercel project, add the **Upstash for Redis** integration
-   (one click). It auto-injects `KV_REST_API_*`. Without it the app still books appointments;
-   reschedule + lowest latency need it.
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/hamchowderr/vapi-ghl-booking)
+
+(`netlify.toml` prompts for the same env vars during the deploy flow.)
+
+After the one-click deploy, you still do two things:
+
+1. **(Optional) Add Redis** for the per-call cache (reschedule + lowest latency need it).
+   - **Vercel** — add the **Upstash for Redis** integration (one click). It auto-injects
+     `KV_REST_API_*`, which the code reads.
+   - **Netlify** — create a free [Upstash](https://upstash.com) Redis DB and set
+     `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` env vars. Without it the app still books
+     appointments.
 2. **Set up your VAPI assistant** (the voice side — see [VAPI setup](#vapi-setup) below). This is
-   the one part that isn't clickable.
+   the one part that isn't clickable. The deployed `/api/...` URLs are identical on both platforms,
+   so the VAPI wiring is the same regardless of host.
 
 ---
 
@@ -59,8 +94,9 @@ callers are booked phone-only and the email backfills via SMS.
 
 ## Environment variables
 
-Set in **Vercel → Settings → Environment Variables** (Production). Locally they live in
-`.env.local` (gitignored). **Never commit secrets.** See `.env.example` for the full list.
+Set in **Vercel → Settings → Environment Variables** or **Netlify → Site config → Environment
+variables** (Production). Locally they live in `.env.local` (gitignored). **Never commit secrets.**
+See `.env.example` for the full list.
 
 | Var | Required | Notes |
 |-----|----------|-------|
@@ -116,7 +152,10 @@ Tools must return the VAPI contract `{ results: [{ toolCallId, result }] }` with
 | `vapi-tools.json` | The two tool definitions to register with VAPI |
 | `system-prompt.md` | Customizable assistant system prompt (fill the `[BRACKETED]` parts) |
 | `dev-server.ts` · `dev-load-env.ts` · `dev-redis.compose.yml` | Local dev harness |
-| `vercel.json` | Region pin + function duration |
+| `vercel.json` | Vercel: region pin + function duration |
+| `netlify.toml` | Netlify: build/functions config + one-click env prompts |
+| `netlify/functions/*.mts` | Netlify adapters — re-export the `api/*` handlers at the same `/api/*` URLs |
+| `public/index.html` | Placeholder landing page (Netlify publish dir) |
 
 ---
 
@@ -141,32 +180,51 @@ UPSTASH_REDIS_REST_TOKEN=localdevtoken
 
 To test against real phone calls, expose `:3000` with a tunnel (e.g. ngrok) and point the VAPI
 server URLs at it. **Note:** a tunnel + remote GHL adds seconds of latency and is *not*
-representative of the deployed experience — judge call quality against the Vercel deploy.
+representative of the deployed experience — judge call quality against the deployed host.
+
+**Netlify-native local dev (optional):** `npm run dev:netlify` runs `netlify dev`, which serves the
+functions at the real `/api/*` paths with Netlify's routing. It loads env from a `.env` file (and
+your linked Netlify site), so copy `.env.example` to `.env` for this path. The `tsx` harness above
+(which reads `.env.local`) still works and is host-agnostic.
 
 ---
 
 ## Deploy
 
 ```bash
-npm run deploy        # vercel --prod
+# Vercel
+npm run deploy            # alias of deploy:vercel → vercel --prod
+
+# Netlify (after `netlify link` once, or use the one-click button above)
+npm run deploy:netlify    # netlify deploy --prod
 ```
 
 After changing env vars, **redeploy** so functions pick them up.
+
+**Netlify notes:**
+- Functions live in `netlify/functions/*.mts` as thin wrappers around the shared `api/*` handlers,
+  and `config.path` in each maps them to the same `/api/...` URLs as Vercel — VAPI config doesn't change.
+- Latency: Netlify Functions run in **AWS us-east-1** by default. The Vercel deploy pins `pdx1`
+  (near VAPI's us-west-2). Netlify can't pin an arbitrary region from `netlify.toml`; set the
+  functions region in the Netlify UI (Site config → Functions) if your plan supports it.
+- The Vercel **Upstash for Redis** integration (`KV_REST_API_*` auto-inject) is Vercel-only — on
+  Netlify, set `UPSTASH_REDIS_REST_URL` / `_TOKEN` yourself.
 
 ---
 
 ## Hard invariants (don't break these)
 
-1. **ESM needs `.js` import extensions.** `package.json` is `"type": "module"`; Vercel runs each
-   function in Node ESM, which rejects extensionless relative imports — always `../lib/ghl.js`.
-   Local `tsx` is lenient, so **only the deploy catches this.**
+1. **ESM needs `.js` import extensions.** `package.json` is `"type": "module"`; both Vercel (Node
+   ESM) and Netlify (esbuild) resolve relative imports by the written `.js` path — always
+   `../lib/ghl.js`, and the `netlify/functions/*` wrappers import `../../api/<name>.js` the same way.
+   Local `tsx` is lenient, but `npm run typecheck` (and the deploy) catches a wrong extension.
 2. **`/api/assistant-request` must answer in ≤6s** (7.5s VAPI deadline). The prefetch is wrapped
    in a 5s `Promise.race` budget — keep it.
 3. **Tool handlers always return HTTP 200.** Any other status is ignored by VAPI.
 4. **GHL Version headers differ by resource:** calendars `2021-04-15`, contacts `2021-07-28`.
 5. **The appointments endpoint returns offset-LESS times** (calendar-local, e.g. `"2026-06-29 15:00:00"`).
    Normalize with `zonedToIso()` before any time math — parsing naïvely uses the server tz
-   (UTC on Vercel) and shifts every comparison by hours.
+   (UTC on both Vercel and Netlify/AWS Lambda) and shifts every comparison by hours.
 6. **Caller number is cached at call start** so booking still works if contact recognition
    misses (the tool-call payload doesn't always carry `customer.number`).
 7. **Never confirm a booking the tool didn't actually return.** Read date/time back from the

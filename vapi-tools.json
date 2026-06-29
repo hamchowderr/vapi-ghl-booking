@@ -1,5 +1,5 @@
 {
-  "_comment": "POST each object to https://api.vapi.ai/tool with your VAPI private key. Set server.url to your deployed Vercel routes. Then attach the returned tool ids to the assistant via model.toolIds.",
+  "_comment": "POST each object to https://api.vapi.ai/tool with your VAPI private key. Set server.url to your deployed domain — same /api/* path on Vercel (https://YOUR-APP.vercel.app) or Netlify (https://YOUR-APP.netlify.app). Then attach the returned tool ids to the assistant via model.toolIds.",
 
   "checkAvailability": {
     "type": "function",
@@ -22,7 +22,7 @@
       }
     },
     "server": {
-      "url": "https://YOUR-APP.vercel.app/api/check-availability",
+      "url": "https://YOUR-DEPLOYED-DOMAIN/api/check-availability",
       "timeoutSeconds": 15
     },
     "messages": [
@@ -68,7 +68,7 @@
       }
     },
     "server": {
-      "url": "https://YOUR-APP.vercel.app/api/calendar-booking",
+      "url": "https://YOUR-DEPLOYED-DOMAIN/api/calendar-booking",
       "timeoutSeconds": 20
     },
     "messages": [

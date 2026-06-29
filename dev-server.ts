@@ -1,7 +1,7 @@
 // Local test runner — serves the same /api handlers vercel dev would, but reads
 // .env.local directly (vercel dev pulls env from the cloud project, which is empty
 // for local-only testing). Run: npx --yes tsx dev-server.ts   (PORT defaults to 3000)
-// This is a LOCAL TEST HARNESS only — production runs on Vercel Functions.
+// This is a LOCAL TEST HARNESS only — production runs on Vercel or Netlify Functions.
 import "./dev-load-env"; // MUST be first: populate process.env from .env.local before handler/cache modules evaluate
 import { createServer } from "node:http";
 
