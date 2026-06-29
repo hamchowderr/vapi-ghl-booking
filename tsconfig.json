@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["api/**/*.ts", "lib/**/*.ts"]
+  "include": ["api/**/*.ts", "lib/**/*.ts", "netlify/functions/**/*.mts"]
 }

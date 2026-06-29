@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Single-client VAPI voice assistant that books/reschedules GoHighLevel appointments, on Vercel Functions.",
+  "description": "Single-client VAPI voice assistant that books/reschedules GoHighLevel appointments, on Vercel or Netlify Functions.",
   "scripts": {
     "deploy": "vercel --prod",
+    "deploy:vercel": "vercel --prod",
+    "deploy:netlify": "netlify deploy --prod",
+    "dev:netlify": "netlify dev",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

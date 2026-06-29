@@ -7,6 +7,12 @@ Functions. Read this before changing code.
 
 - Vercel Functions, **Node runtime** (not Edge), Web-standard handlers:
   `export async function POST(req: Request): Promise<Response>`.
+- **Dual-target: Vercel OR Netlify, same repo.** The handlers in `api/*` + `lib/*` are the single
+  source of truth. Netlify support is `netlify/functions/*.mts` — thin wrappers that
+  `import { POST } from "../../api/<name>.js"`, re-export it as `default`, and set
+  `export const config = { path: "/api/<name>" }` so the URL matches Vercel. **Put logic in
+  `api/*`, never in the wrappers** — both platforms must stay in sync. esbuild (Netlify) resolves
+  the `.js`→`.ts` imports just like Vercel; `tsc` (`moduleResolution: bundler`) verifies it.
 - **No runtime npm dependencies.** Uses native `fetch`, `Buffer`, `Intl`,
   `URLSearchParams`. Keep it that way — bundle size affects cold starts.
 - Region pinned to `pdx1` (near VAPI us-west-2) in `vercel.json`. Do not move it
