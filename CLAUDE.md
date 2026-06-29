@@ -13,8 +13,10 @@ Functions. Read this before changing code.
   `export const config = { path: "/api/<name>" }` so the URL matches Vercel. **Put logic in
   `api/*`, never in the wrappers** — both platforms must stay in sync. esbuild (Netlify) resolves
   the `.js`→`.ts` imports just like Vercel; `tsc` (`moduleResolution: bundler`) verifies it.
-- **No runtime npm dependencies.** Uses native `fetch`, `Buffer`, `Intl`,
-  `URLSearchParams`. Keep it that way — bundle size affects cold starts.
+- **Near-zero runtime deps.** Native `fetch`, `Buffer`, `Intl`, `URLSearchParams`. The ONLY
+  runtime dep is `@netlify/blobs` — the Netlify cache backend, pulled in via dynamic
+  `import()` inside `lib/cache.ts` only when `process.env.NETLIFY` is set. Don't add others;
+  bundle size affects cold starts.
 - Region pinned to `pdx1` (near VAPI us-west-2) in `vercel.json`. Do not move it
   to the edge or a multi-region config — the VAPI legs are the latency-critical path.
 
@@ -34,8 +36,11 @@ Functions. Read this before changing code.
 
 ## Data flow / shared state
 
-- `lib/cache.ts` holds per-call state keyed by `call.id` (Upstash Redis REST),
-  written at `assistant-request`, read by both tool handlers. TTL 30m.
+- `lib/cache.ts` holds per-call state keyed by `call.id`, written at `assistant-request`,
+  read by both tool handlers. TTL 30m. **Two backends, picked at runtime:** Netlify Blobs when
+  `process.env.NETLIFY` is set (zero-config, strong consistency, expiry emulated via an
+  `expiresAt` wrapper since Blobs has no native TTL); Upstash/Vercel-KV REST otherwise. No
+  backend configured → graceful no-op (booking works, reschedule degrades).
 - Config comes from flat env vars via `getClientConfig()` / `getClientByInbound()`
   in `lib/ghl.ts`. **Single client** — the `phoneNumberId` arg is ignored.
   To go multi-client, swap these two functions to query Supabase by `phoneNumberId`;
