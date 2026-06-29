@@ -7,7 +7,7 @@ appointments** straight into your GoHighLevel calendar — over voice, with no h
 Built for low latency: the slow work (availability, caller lookup, existing-appointment check)
 is prefetched at call start and cached, so the live conversation only does a slot re-check + write.
 
-**Stack:** Vercel **or** Netlify Functions (Node) · GoHighLevel REST · Upstash Redis (optional) · VAPI · **zero runtime dependencies**
+**Stack:** Vercel **or** Netlify Functions (Node) · GoHighLevel REST · per-call cache (Netlify Blobs, or Upstash/Vercel KV) · VAPI
 
 > **Deploys to Vercel or Netlify** from the same repo. The booking logic (`api/*` + `lib/*`)
 > is platform-agnostic Web-standard handlers; each platform just has a thin adapter layer
@@ -49,12 +49,13 @@ one click.**
 
 After the one-click deploy, you still do two things:
 
-1. **(Optional) Add Redis** for the per-call cache (reschedule + lowest latency need it).
+1. **Per-call cache** (holds caller + slot + appointment state between the call-start prefetch
+   and the tool handlers). This is **needed for reschedule and reliable booking**, not just
+   latency — without it, reschedule silently double-books and some callers can fail to book.
+   - **Netlify** — **nothing to do.** The code uses **Netlify Blobs**, which is built in and
+     auto-provisioned (no account, no env vars, no setup). ✅
    - **Vercel** — add the **Upstash for Redis** integration (one click). It auto-injects
-     `KV_REST_API_*`, which the code reads.
-   - **Netlify** — create a free [Upstash](https://upstash.com) Redis DB and set
-     `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` env vars. Without it the app still books
-     appointments.
+     `KV_REST_API_*`, which the code reads. (Or set `UPSTASH_REDIS_REST_URL` / `_TOKEN` yourself.)
 2. **Set up your VAPI assistant** (the voice side — see [VAPI setup](#vapi-setup) below). This is
    the one part that isn't clickable. The deployed `/api/...` URLs are identical on both platforms,
    so the VAPI wiring is the same regardless of host.
@@ -72,7 +73,7 @@ Caller dials your VAPI number
    │   • getContactByPhone      (read-only — recognize the caller)
    │   • getFreeSlots           (next 10 days)
    │   • getUpcomingAppointment (known callers, for reschedule)
-   │  → cache state by call.id (Upstash) + inject into the assistant:
+   │  → cache state by call.id (Netlify Blobs / Upstash) + inject into the assistant:
    │      {{now}} {{availabilitySummary}} {{callerName}} {{contactKnown}} …
    ▼
 Conversation
@@ -107,7 +108,7 @@ See `.env.example` for the full list.
 | `GHL_TIMEZONE` | ◻︎ | IANA tz of the calendar (e.g. `America/Chicago`; default `America/New_York`) |
 | `SMS_PROVIDER` | ◻︎ | `ghl` (default) · `twilio` · `telnyx` · `vapi` |
 | `VAPI_ASSISTANT_ID` | ✅ | The assistant `/api/assistant-request` returns |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | ◻︎ | Per-call cache. The Vercel **Upstash for Redis** integration auto-injects `KV_REST_API_URL`/`_TOKEN` instead — the code accepts either. Omit to run without a cache (reschedule degrades). |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | ◻︎ | Per-call cache, **non-Netlify only**. On **Netlify** the cache uses built-in **Netlify Blobs** automatically — leave these unset. On **Vercel**, the **Upstash for Redis** integration auto-injects `KV_REST_API_URL`/`_TOKEN` instead (code accepts either). |
 
 `VAPI_PRIVATE_KEY` is **admin-only** (registering tools / patching the assistant from your
 machine) — the deployed functions never call VAPI, so it is not a runtime requirement.
@@ -148,7 +149,7 @@ Tools must return the VAPI contract `{ results: [{ toolCallId, result }] }` with
 | `lib/ghl.ts` | All GoHighLevel REST calls + single-client config from env |
 | `lib/slots.ts` | Slot matching, speech formatting, timezone normalization |
 | `lib/sms.ts` | Provider-agnostic SMS send (ghl / twilio / telnyx / vapi) |
-| `lib/cache.ts` | Per-call state (Upstash Redis REST) |
+| `lib/cache.ts` | Per-call state — Netlify Blobs (on Netlify) or Upstash/Vercel KV REST (elsewhere) |
 | `vapi-tools.json` | The two tool definitions to register with VAPI |
 | `system-prompt.md` | Customizable assistant system prompt (fill the `[BRACKETED]` parts) |
 | `dev-server.ts` · `dev-load-env.ts` · `dev-redis.compose.yml` | Local dev harness |
@@ -183,9 +184,10 @@ server URLs at it. **Note:** a tunnel + remote GHL adds seconds of latency and i
 representative of the deployed experience — judge call quality against the deployed host.
 
 **Netlify-native local dev (optional):** `npm run dev:netlify` runs `netlify dev`, which serves the
-functions at the real `/api/*` paths with Netlify's routing. It loads env from a `.env` file (and
+functions at the real `/api/*` paths with Netlify's routing and gives you a **sandboxed local
+Netlify Blobs store** for the cache (no Redis/docker needed). It loads env from a `.env` file (and
 your linked Netlify site), so copy `.env.example` to `.env` for this path. The `tsx` harness above
-(which reads `.env.local`) still works and is host-agnostic.
+(which reads `.env.local` and uses the Upstash/Redis path) still works and is host-agnostic.
 
 ---
 
@@ -204,11 +206,15 @@ After changing env vars, **redeploy** so functions pick them up.
 **Netlify notes:**
 - Functions live in `netlify/functions/*.mts` as thin wrappers around the shared `api/*` handlers,
   and `config.path` in each maps them to the same `/api/...` URLs as Vercel — VAPI config doesn't change.
-- Latency: Netlify Functions run in **AWS us-east-1** by default. The Vercel deploy pins `pdx1`
-  (near VAPI's us-west-2). Netlify can't pin an arbitrary region from `netlify.toml`; set the
-  functions region in the Netlify UI (Site config → Functions) if your plan supports it.
-- The Vercel **Upstash for Redis** integration (`KV_REST_API_*` auto-inject) is Vercel-only — on
-  Netlify, set `UPSTASH_REDIS_REST_URL` / `_TOKEN` yourself.
+- Latency / region: Netlify Functions default to **US East (cmh / Ohio)**. Netlify **does** offer
+  the same region Vercel pins to — **`pdx` (US West, Oregon, near VAPI's us-west-2)** — but you set
+  it in the **UI** (Project config → Build & deploy → Functions region) on **Pro/Enterprise** plans,
+  not in `netlify.toml`. So the latency parity is achievable; the only real gap is that Vercel pins
+  region **free, in `vercel.json`**, whereas Netlify makes it a **paid-plan UI toggle**. If the VAPI
+  legs feel slow on Netlify, switch the functions region to `pdx`.
+- **Cache: zero setup.** `lib/cache.ts` uses **Netlify Blobs** when `process.env.NETLIFY` is set —
+  built-in, auto-provisioned, no env vars. (Off Netlify it falls back to Upstash/Vercel KV REST.)
+  Strong consistency is used so the call-start write is readable by the tool handlers immediately.
 
 ---
 
@@ -229,7 +235,9 @@ After changing env vars, **redeploy** so functions pick them up.
    misses (the tool-call payload doesn't always carry `customer.number`).
 7. **Never confirm a booking the tool didn't actually return.** Read date/time back from the
    tool result, not from intent.
-8. **Zero runtime dependencies** — native `fetch`, `Buffer`, `Intl`, `URLSearchParams` only.
+8. **Near-zero runtime dependencies** — native `fetch`, `Buffer`, `Intl`, `URLSearchParams`. The
+   only runtime dep is `@netlify/blobs` (the Netlify cache backend, loaded via dynamic import only
+   when `process.env.NETLIFY` is set). Don't add others — bundle size affects cold starts.
 
 ---
 
