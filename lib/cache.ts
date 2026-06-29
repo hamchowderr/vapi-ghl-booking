@@ -37,9 +37,13 @@ export interface CallState {
 
 const key = (callId: string) => `call:${callId}`;
 
-// Netlify sets NETLIFY=true in its build + function runtime. Presence of it is how
-// we know to use Blobs instead of Upstash.
-const onNetlify = Boolean(process.env.NETLIFY);
+// How we know to use Blobs instead of Upstash/KV. IMPORTANT: process.env.NETLIFY is a BUILD
+// var — it is NOT present inside deployed Netlify Functions at runtime. The only read-only
+// vars Netlify exposes to the function runtime are URL, SITE_NAME, SITE_ID
+// (https://docs.netlify.com/build/functions/environment-variables/). So we key off SITE_ID,
+// which is reliably set on a real Netlify deploy; NETLIFY is kept only as a belt-and-suspenders
+// fallback (some `netlify dev` setups). Neither present → Upstash/KV path (Vercel / local).
+const onNetlify = Boolean(process.env.SITE_ID || process.env.NETLIFY);
 
 // Upstash / Vercel KV REST creds (used only when NOT on Netlify). `||` (not `??`)
 // so an empty or leftover-placeholder UPSTASH var falls through to KV_REST_API_*.

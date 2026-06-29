@@ -10,3 +10,6 @@ dist/
 .vercel
 .netlify
 .env*.local
+
+# netlify dev artifact (Deno edge runtime — unused here)
+deno.lock

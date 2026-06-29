@@ -15,8 +15,8 @@ Functions. Read this before changing code.
   the `.js`→`.ts` imports just like Vercel; `tsc` (`moduleResolution: bundler`) verifies it.
 - **Near-zero runtime deps.** Native `fetch`, `Buffer`, `Intl`, `URLSearchParams`. The ONLY
   runtime dep is `@netlify/blobs` — the Netlify cache backend, pulled in via dynamic
-  `import()` inside `lib/cache.ts` only when `process.env.NETLIFY` is set. Don't add others;
-  bundle size affects cold starts.
+  `import()` inside `lib/cache.ts` only on the Netlify runtime (detected via `SITE_ID`; see
+  the cache note below). Don't add others; bundle size affects cold starts.
 - Region pinned to `pdx1` (near VAPI us-west-2) in `vercel.json`. Do not move it
   to the edge or a multi-region config — the VAPI legs are the latency-critical path.
 
@@ -38,8 +38,9 @@ Functions. Read this before changing code.
 
 - `lib/cache.ts` holds per-call state keyed by `call.id`, written at `assistant-request`,
   read by both tool handlers. TTL 30m. **Two backends, picked at runtime:** Netlify Blobs when
-  `process.env.NETLIFY` is set (zero-config, strong consistency, expiry emulated via an
-  `expiresAt` wrapper since Blobs has no native TTL); Upstash/Vercel-KV REST otherwise. No
+  on the Netlify runtime — detected via `process.env.SITE_ID` (NOT `NETLIFY`, which is build-only
+  and absent in functions at runtime) — zero-config, strong consistency, expiry emulated via an
+  `expiresAt` wrapper since Blobs has no native TTL; Upstash/Vercel-KV REST otherwise. No
   backend configured → graceful no-op (booking works, reschedule degrades).
 - Config comes from flat env vars via `getClientConfig()` / `getClientByInbound()`
   in `lib/ghl.ts`. **Single client** — the `phoneNumberId` arg is ignored.
