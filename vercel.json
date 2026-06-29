@@ -1,0 +1,8 @@
+{
+  "regions": ["pdx1"],
+  "functions": {
+    "api/**": {
+      "maxDuration": 20
+    }
+  }
+}

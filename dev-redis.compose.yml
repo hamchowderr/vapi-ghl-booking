@@ -1,0 +1,23 @@
+# Local Upstash-REST shim for dev/testing only.
+# serverless-redis-http exposes the Upstash Redis REST API on :8079 backed by a
+# local Redis, so lib/cache.ts works locally with no cloud account.
+#   start:  docker compose -f dev-redis.compose.yml up -d
+#   stop:   docker compose -f dev-redis.compose.yml down
+# Then in .env.local:
+#   UPSTASH_REDIS_REST_URL=http://localhost:8079
+#   UPSTASH_REDIS_REST_TOKEN=localdevtoken
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+  srh:
+    image: hiett/serverless-redis-http:latest
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: localdevtoken
+      SRH_CONNECTION_STRING: "redis://redis:6379"
+    ports:
+      - "8079:80"
+    depends_on:
+      - redis
+    restart: unless-stopped

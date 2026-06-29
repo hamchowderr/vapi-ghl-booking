@@ -1,0 +1,79 @@
+{
+  "_comment": "POST each object to https://api.vapi.ai/tool with your VAPI private key. Set server.url to your deployed Vercel routes. Then attach the returned tool ids to the assistant via model.toolIds.",
+
+  "checkAvailability": {
+    "type": "function",
+    "function": {
+      "name": "checkAvailability",
+      "description": "Resolve and validate a requested appointment time against the calendar. Convert relative dates such as 'in 7 days', 'tomorrow', or 'next Friday' into fixed dates by starting from the current date ({{now}}, in {{calendarTimezone}}). Check the calculated date against closure days, including weekends and holidays. If the date falls on a closure day, identify and propose the next available working day. For 'tomorrow' or 'day after tomorrow', calculate the dates relative to {{now}}. When the user names a weekday like 'next Friday', determine the exact next occurrence and ensure it complies with working-day rules. Construct the requested slot in ISO 8601 using {{calendarTimezone}} as the timezone. If the requested date or time is unavailable, return clear alternative slots until a valid one is selected. Always pass the timezone exactly as {{calendarTimezone}}.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "requestedDateTime": {
+            "type": "string",
+            "description": "The user's requested slot resolved to ISO 8601 (offset-aware), e.g. 2026-07-01T14:00:00-04:00."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Always {{calendarTimezone}}."
+          }
+        },
+        "required": ["requestedDateTime", "timezone"]
+      }
+    },
+    "server": {
+      "url": "https://YOUR-APP.vercel.app/api/check-availability",
+      "timeoutSeconds": 15
+    },
+    "messages": [
+      { "type": "request-start", "content": "Sure — let me take a quick look at the calendar for you." },
+      { "type": "request-response-delayed", "content": "One moment, still checking on that…", "timingMilliseconds": 2500 }
+    ]
+  },
+
+  "calendarBooking": {
+    "type": "function",
+    "function": {
+      "name": "calendarBooking",
+      "description": "Book the slot confirmed by checkAvailability. Use the requestedSlot in ISO 8601 and the timezone ({{calendarTimezone}}) from the previous checkAvailability call. Only call this AFTER the user verbally confirms the specific slot returned by checkAvailability. The caller is identified from their phone number at call start: if contactKnown is true, greet them as {{callerName}} and do NOT ask for name or email. If contactKnown is false, collect the caller's NAME verbally, but NEVER ask for their email by voice — the system texts the caller for their email automatically after booking. On success, confirm the appointment and tell the caller a text confirmation is being sent.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "requestedSlot": {
+            "type": "string",
+            "description": "The confirmed slot in ISO 8601 (offset-aware), exactly as returned by checkAvailability."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Always {{calendarTimezone}}."
+          },
+          "name": {
+            "type": "string",
+            "description": "Fallback ONLY when contactKnown is false. Otherwise omit."
+          },
+          "email": {
+            "type": "string",
+            "description": "Fallback ONLY when contactKnown is false. Otherwise omit."
+          },
+          "reschedule": {
+            "type": "boolean",
+            "description": "Set true ONLY when the caller is moving their EXISTING appointment (hasUpcomingAppointment is true) to this new slot. Omit or false to book a new appointment."
+          },
+          "reason": {
+            "type": "string",
+            "description": "A short phrase summarizing the caller's business and goal from the qualifying question, e.g. 'Roofing company, wants more AI-search leads.' Used as the appointment title. Omit if they did not say."
+          }
+        },
+        "required": ["requestedSlot", "timezone"]
+      }
+    },
+    "server": {
+      "url": "https://YOUR-APP.vercel.app/api/calendar-booking",
+      "timeoutSeconds": 20
+    },
+    "messages": [
+      { "type": "request-start", "content": "Perfect — let me get that booked for you." },
+      { "type": "request-response-delayed", "content": "Almost done, just locking it in…", "timingMilliseconds": 2500 }
+    ]
+  }
+}

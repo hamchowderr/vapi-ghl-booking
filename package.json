@@ -1,0 +1,15 @@
+{
+  "name": "vapi-ghl-booking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-client VAPI voice assistant that books/reschedules GoHighLevel appointments, on Vercel Functions.",
+  "scripts": {
+    "deploy": "vercel --prod",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  }
+}
