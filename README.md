@@ -206,9 +206,12 @@ After changing env vars, **redeploy** so functions pick them up.
 **Netlify notes:**
 - Functions live in `netlify/functions/*.mts` as thin wrappers around the shared `api/*` handlers,
   and `config.path` in each maps them to the same `/api/...` URLs as Vercel — VAPI config doesn't change.
-- Latency: Netlify Functions run in **AWS us-east-1** by default. The Vercel deploy pins `pdx1`
-  (near VAPI's us-west-2). Netlify can't pin an arbitrary region from `netlify.toml`; set the
-  functions region in the Netlify UI (Site config → Functions) if your plan supports it.
+- Latency / region: Netlify Functions default to **US East (cmh / Ohio)**. Netlify **does** offer
+  the same region Vercel pins to — **`pdx` (US West, Oregon, near VAPI's us-west-2)** — but you set
+  it in the **UI** (Project config → Build & deploy → Functions region) on **Pro/Enterprise** plans,
+  not in `netlify.toml`. So the latency parity is achievable; the only real gap is that Vercel pins
+  region **free, in `vercel.json`**, whereas Netlify makes it a **paid-plan UI toggle**. If the VAPI
+  legs feel slow on Netlify, switch the functions region to `pdx`.
 - **Cache: zero setup.** `lib/cache.ts` uses **Netlify Blobs** when `process.env.NETLIFY` is set —
   built-in, auto-provisioned, no env vars. (Off Netlify it falls back to Upstash/Vercel KV REST.)
   Strong consistency is used so the call-start write is readable by the tool handlers immediately.

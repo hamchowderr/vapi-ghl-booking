@@ -24,10 +24,12 @@
   # extensions (e.g. ../../api/ghl.js -> ghl.ts) the same way the Vercel build does.
   node_bundler = "esbuild"
 
-# Latency note: Netlify Functions run in AWS us-east-1 by default. The Vercel
-# deploy pins pdx1 (near VAPI us-west-2) — Netlify can't pin an arbitrary region
-# from this file. If the VAPI legs feel slow, set the functions region in the
-# Netlify UI (Site config → Functions) on a plan that supports it.
+# Latency note: Netlify Functions default to US East (cmh / Ohio). Netlify DOES
+# support the same region as the Vercel pin — pdx (US West, Oregon, near VAPI's
+# us-west-2) — but it's set in the UI (Project config → Build & deploy → Functions
+# region) on Pro/Enterprise plans, not from this file. Free/config-file region
+# pinning is the one thing Vercel (vercel.json `regions`) does that Netlify doesn't.
+# If the VAPI legs feel slow on Netlify, switch the functions region to pdx there.
 
 # ── One-click "Deploy to Netlify" env prompts (parity with the Vercel button) ──
 # Shown in the deploy UI so the user fills these before the first build.
