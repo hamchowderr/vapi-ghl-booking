@@ -212,8 +212,9 @@ After changing env vars, **redeploy** so functions pick them up.
   not in `netlify.toml`. So the latency parity is achievable; the only real gap is that Vercel pins
   region **free, in `vercel.json`**, whereas Netlify makes it a **paid-plan UI toggle**. If the VAPI
   legs feel slow on Netlify, switch the functions region to `pdx`.
-- **Cache: zero setup.** `lib/cache.ts` uses **Netlify Blobs** when `process.env.NETLIFY` is set —
-  built-in, auto-provisioned, no env vars. (Off Netlify it falls back to Upstash/Vercel KV REST.)
+- **Cache: zero setup.** `lib/cache.ts` uses **Netlify Blobs** when it detects the Netlify runtime
+  (via `process.env.SITE_ID` — `NETLIFY` is build-only, not available to functions at runtime).
+  Built-in, auto-provisioned, no env vars. (Off Netlify it falls back to Upstash/Vercel KV REST.)
   Strong consistency is used so the call-start write is readable by the tool handlers immediately.
 
 ---
@@ -237,7 +238,7 @@ After changing env vars, **redeploy** so functions pick them up.
    tool result, not from intent.
 8. **Near-zero runtime dependencies** — native `fetch`, `Buffer`, `Intl`, `URLSearchParams`. The
    only runtime dep is `@netlify/blobs` (the Netlify cache backend, loaded via dynamic import only
-   when `process.env.NETLIFY` is set). Don't add others — bundle size affects cold starts.
+   when running on Netlify). Don't add others — bundle size affects cold starts.
 
 ---
 
