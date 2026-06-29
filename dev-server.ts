@@ -1,6 +1,6 @@
 // Local test runner — serves the same /api handlers vercel dev would, but reads
 // .env.local directly (vercel dev pulls env from the cloud project, which is empty
-// for local-only testing). Run: npx --yes tsx dev-server.ts   (PORT defaults to 3001)
+// for local-only testing). Run: npx --yes tsx dev-server.ts   (PORT defaults to 3000)
 // This is a LOCAL TEST HARNESS only — production runs on Vercel Functions.
 import "./dev-load-env"; // MUST be first: populate process.env from .env.local before handler/cache modules evaluate
 import { createServer } from "node:http";
@@ -19,7 +19,7 @@ const routes: Record<string, (r: Request) => Promise<Response>> = {
   "/api/call-report": callReport,
 };
 
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(process.env.PORT) || 3000;
 
 createServer(async (req, res) => {
   const path = (req.url || "").split("?")[0];
